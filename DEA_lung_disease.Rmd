@@ -1,0 +1,181 @@
+---
+title: "Data Exploration using the lung disease dataset"
+author: "kd91"
+date: "12/30/2020"
+output: 
+  html_document:
+    keep_md: true
+#rmarkdown::github_document
+---
+## Required libraries
+```{r}
+library(ggplot2)
+```
+## Importing Data into R
+```{r}
+setwd(getwd())
+
+lung_data <- read.csv("lungDisease.csv", header=T)
+summary(lung_data)
+```
+## data exploration
+```{r}
+g <- ggplot(data = lung_data)
+g + geom_histogram(aes(x=rvtlc), bins = 30, color = "black") + ggtitle("Distribution of the rvtlc") + xlab("rvtlc") + ylab("Count")
+
+g + geom_histogram(aes(x=yrs_tot_smoke), bins = 30, color = "blue") + ggtitle("Distribution of the total smoked years") + xlab("total smoked years") + ylab("Count")
+
+g + geom_density(aes(x=yrs_smoke),fill = "cyan") + ggtitle("Distribution of the no. of years smoked") + xlab("no. of years smoked") + ylab("Density")
+
+g + geom_histogram(aes(x=age), bins = 30, color = "red") + ggtitle("Distribution of patient's age (years)") + xlab("age (years)") + ylab("Count")
+
+g + geom_point (aes(x=rvtlc, y=age)) + ggtitle("Distribution of rvtlc vs patient's age") +
+  xlab("rvtlc") + ylab("patient's age")
+
+g + geom_point (aes(x=rvtlc, y=yrs_tot_smoke)) + ggtitle("Distribution of rvtlc vs total number of yrs smoked") +
+  xlab("rvtlc") + ylab("total number of yrs smoked")
+```
+
+## Linear regression
+```{r}
+# linear main effects model
+fit_main <- lm(rvtlc ~ yrs_tot_smoke + yrs_smoke + age, data=lung_data)
+summary(fit_main)
+
+# the model is not a good fit. the adjusted R squared value is very high (0.49).
+# thus, the model explains only 49% variance of rvtlc as a fraction of total explanable variation.
+# only one predictor variable : age, is statistically significant to the model. Its p-value is < 0.05.
+# the model's overall p-value is less than 0.05, which could indicate model statistical significance.
+# But the model is not statistically significant since all its response variables are not significant 
+# and the adjusted r-squared values are very high.
+# fitted coefficients interpretation:
+# rvtlc = 0.04616 * yrs_tot_smoke - 0.04498 * yrs_smoke + 0.41804 * age + 10.43366
+# For each year increase in yrs_tot_smoke, rvtlc (chances of COPD) increases on average by 0.04616 units, assuming all other variables are held constant
+# For each year increase in yrs_smoke, rvtlc (chances of COPD) decreases on average by 0.04498 units, assuming all other variables are held constant
+# For each year increase in age , rvtlc (chances of COPD) increases on average by 0.41804 units, assuming all other variables are held constant
+```
+
+```{r}
+# linear model of named fit_smoke of variable rvtlc 
+fit_smoke <- lm(rvtlc ~ yrs_smoke, data=lung_data)
+summary(fit_smoke)
+
+# As compared to fit_main, in fit_smoke the effect of the years smoked reduces on rvtlc.
+# the more number of years the patient has smoked, has less effect it has as compared to the total number of years smoked by the patient.
+# for each year increase in yrs_smoke, chances of getting COPD (higher rvtlc) increases by  0.23334 units.
+```
+
+```{r}
+# main effects model with 2nd order interactions with variable as rvtlc
+fit_full <- lm(rvtlc ~ (yrs_tot_smoke + yrs_smoke + age)^2, data=lung_data)
+summary(fit_full)
+# in fit main only age was  asignificant variable.
+# this model indicates that besides from age, the interaction between yrs_tot_smoke & yrs_smoke is also statistically significant.
+# the adjusted R sqaured value & p-value of fit_main & fit_full are very close.
+# this model is not a good fit, and not very statistically significant.
+```
+
+```{r}
+# removing insignificant variables one-by-one
+fit_full <- lm(rvtlc ~ yrs_tot_smoke + yrs_smoke + age + yrs_tot_smoke:yrs_smoke + 
+              yrs_tot_smoke:age + yrs_smoke:age, data=lung_data)
+summary(fit_full)
+
+# removing yrs_tot_smoke from #4
+fit1 <- lm(rvtlc ~ yrs_smoke + age + yrs_tot_smoke:yrs_smoke + 
+             yrs_tot_smoke:age + yrs_smoke:age, data=lung_data)
+summary(fit1)
+
+# removing yrs_smoke
+fit2 <- lm(rvtlc ~ age + yrs_tot_smoke:yrs_smoke + yrs_tot_smoke:age + yrs_smoke:age, data=lung_data)
+summary(fit2)
+
+# removing yrs_smoke:age
+fit_final <- lm(rvtlc ~ age + yrs_tot_smoke:yrs_smoke + yrs_tot_smoke:age, data=lung_data)
+summary(fit_final)
+
+# fitted model equation:
+# rvtlc = 0.406 * age - 0.0036 * yrs_tot_smoke:yrs_smoke + 0.0019 * age:yrs_tot_smoke + 10.535
+# For each year increase in age & yrs_tot_smoke, rvtlc increases on average by 0.0019 units, assuming all other variables are held constant
+# For each year increase in yrs_tot_smoke & yrs_smoke, rvtlc decreases on average by 0.0036 units, assuming all other variables are held constant
+# For each year increase in age , rvtlc increases on average by 0.406 units, assuming all other variables are held constant
+```
+#### adding a new variable for age-group to the df
+```{r}
+lung_data$has_disease <- ifelse(lung_data$rvtlc >= 35, 1, 0)
+
+# visualising data with the new variable
+g <- ggplot(data=lung_data)
+
+g + geom_bar(aes(x=factor(has_disease)), color="brown") + ggtitle("Distribution of patients with and without disease") +  
+  xlab("patient with(1) or without(0) disease") + ylab("Count")
+
+g + geom_histogram(aes(x=rvtlc, fill=factor(has_disease)), bins = 30, color = "black") + ggtitle("Distribution of the rvtlc") +  
+  xlab("rvtlc") + ylab("Count")
+# since rvtlc greater than 35 has disease (COPD), the histogram clearly indicates lower rvtlc without disease
+# and rvtlc value higher than 35, having disease (has_disease= 1)
+
+g + geom_histogram(aes(x=yrs_tot_smoke, fill=factor(has_disease)), bins = 20, color = "white") + 
+  ggtitle("Distribution of total number of years smoked") + xlab("total no. of years smoked") + ylab("Count")
+# for patients with total number of years smoked more,have higher chances of having COPD(has_disease=1)
+# than patients with less no. of years smoked
+
+g + geom_density(aes(x=yrs_tot_smoke, fill=factor(has_disease)), alpha=0.5) + 
+  ggtitle("Distrubution of years smoked in total for patients with & without disease (0=no COPD, 1=COPD)") +
+  xlab("total years smoked") + ylab("density")
+
+g + geom_histogram(aes(x=yrs_smoke, fill=factor(has_disease)), bins = 15, color = "white") + 
+  ggtitle("Distribution of number of years smoked") + xlab("no. of years smoked") + ylab("Count")
+# for patients with less no. of years smoked, there are less patients with COPD (has_disease=1),
+# for more no. of years smoked, there are more patients with chances of having COPD
+
+g + geom_boxplot(aes(x=factor(has_disease), y=yrs_smoke), color="blue") +
+ ggtitle (" Distribution of patient having disease or not vs their no. of yrs smoked") +
+  xlab("patient has disease(=1) or not (=0)") + ylab("no. of yrs smoked")
+
+g + geom_histogram(aes(x=age, fill=factor(has_disease)), bins = 20, color = "black") + 
+  ggtitle("Distribution of age") + xlab("age (in years)") + ylab("Count")
+# compared to younger patients, older patients have higher chances of having COPD (has_disease=1)
+```
+## Logistic Regression
+```{r}
+# glm model usign all predictor variables
+fit_main_glm <- glm(has_disease ~ yrs_tot_smoke + yrs_smoke + age, family=binomial(), data = lung_data)
+summary(fit_main_glm)
+
+# in both models, age is statistically significant to rvtlc (in model #2) and to has_disease in this model
+# the AIC is low (174), which indicates good fit
+# but all variables (except age) are not statistically significant ( p > 0.05)
+# the null & residual deviance values have very less difference, which doesn't indicate a good overall model
+```
+
+```{r}
+# using the step function to improve our logistic regression model
+
+# upper model
+fit_full <- lm(rvtlc ~ (yrs_tot_smoke + yrs_smoke + age)^2 , data=lung_data)
+summary(fit_full)
+
+# Fit a regression model for the null model: rvtlc as a function of the intercept only.
+fit_null <- lm(rvtlc ~ 1, data = lung_data)
+summary(fit_null)
+
+fit_step1 = step(fit_null, scope=list(lower=fit_null, upper=fit_full),direction="both")
+summary(fit_step1)
+# AIC = 471.4 & p-value<0.05 indicate a good model than the results above 
+# In our model, age seems to be the most significant variable with reponse to rvtlc
+
+```
+
+```{r}
+# side_note: glm model with has_disease as a function of rvtlc only : Explains how correlated variables appear in the glm model
+fit_glm <- glm(has_disease ~rvtlc, family=binomial(), data = lung_data)
+summary(fit_glm)
+
+# there is a warning message, due to perfect linear separation
+# the variables : has_disease & rvtlc have high correlation 
+# since the variable has_disease is a derived variable from values of rvtlc
+# the variable rvtlc has a very high p-value (0.988), and no statistical significance
+# the AIC is very less , but the null & residual deviances have very high difference
+# all indicating that the model has perfectly linear relationship and that another model should be considered
+```
